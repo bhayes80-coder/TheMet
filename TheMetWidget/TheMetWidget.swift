@@ -34,122 +34,118 @@ import WidgetKit
 import SwiftUI
 
 struct Provider: TimelineProvider {
-  func readObjects() -> [Object] {
-    var objects: [Object] = []
-    let archiveURL =
-      FileManager.sharedContainerURL()
-      .appendingPathComponent("objects.json")
-    print(">>> \(archiveURL)")
+    func readObjects() -> [Object] {
+        guard let archiveURL = FileManager.sharedContainerURL()?.appendingPathComponent("objects.json") else {
+            print("Error: Could not get shared container URL")
+            return []
+        }
+        print(">>> \(archiveURL)")
 
-    if let codeData = try? Data(contentsOf: archiveURL) {
-      do {
-        objects = try JSONDecoder()
-          .decode([Object].self, from: codeData)
-      } catch {
-        print("Error: Can't decode contents")
-      }
-    }
-    return objects
-  }
-
-  func placeholder(in context: Context) -> SimpleEntry {
-    SimpleEntry(date: Date(), object: Object.sample(isPublicDomain: true))
-  }
-
-  func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> Void) {
-    let entry = SimpleEntry(date: Date(), object: Object.sample(isPublicDomain: false))
-    completion(entry)
-  }
-
-  func getTimeline(in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> Void) {
-    var entries: [SimpleEntry] = []
-
-    let currentDate = Date()
-    let interval = 2
-
-    let objects = readObjects()
-    for index in 0 ..< objects.count {
-      let entryDate = Calendar.current.date(
-        byAdding: .second,
-        value: index * interval,
-        to: currentDate)!
-      let entry = SimpleEntry(
-        date: entryDate,
-        object: objects[index])
-      entries.append(entry)
+        do {
+            let data = try Data(contentsOf: archiveURL)
+            return try JSONDecoder().decode([Object].self, from: data)
+        } catch {
+            print("Error reading objects: \(error)")
+            return []
+        }
     }
 
-    let timeline = Timeline(entries: entries, policy: .atEnd)
-    completion(timeline)
-  }
+    func placeholder(in context: Context) -> SimpleEntry {
+        SimpleEntry(date: Date(), object: Object.sample(isPublicDomain: true))
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> Void) {
+        let entry = SimpleEntry(date: Date(), object: Object.sample(isPublicDomain: false))
+        completion(entry)
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> Void) {
+        var entries: [SimpleEntry] = []
+        let currentDate = Date()
+        let interval = 2
+
+        let objects = readObjects()
+        for (index, object) in objects.enumerated() {
+            if let entryDate = Calendar.current.date(byAdding: .second, value: index * interval, to: currentDate) {
+                entries.append(SimpleEntry(date: entryDate, object: object))
+            }
+        }
+
+        if entries.isEmpty {
+            entries.append(SimpleEntry(date: currentDate, object: Object.sample(isPublicDomain: true)))
+        }
+
+        completion(Timeline(entries: entries, policy: .atEnd))
+    }
 }
 
 struct SimpleEntry: TimelineEntry {
-  let date: Date
-  let object: Object
+    let date: Date
+    let object: Object
 }
 
 struct DetailIndicatorView: View {
-  let title: String
+    let title: String
 
-  var body: some View {
-    HStack(alignment: .firstTextBaseline) {
-      Text(title)
-      Spacer()
-      Image(systemName: "doc.text.image.fill")
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+            Spacer()
+            Image(systemName: "doc.text.image.fill")
+        }
     }
-  }
 }
 
 struct TheMetWidgetEntryView: View {
-  var entry: Provider.Entry
+    var entry: Provider.Entry
 
-  var body: some View {
-    VStack {
-      Text("The Met")
-        .font(.headline)
-      Divider()  
+    var body: some View {
+        VStack {
+            Text("The Met")
+                .font(.headline)
+            Divider()
 
-      if !entry.object.isPublicDomain {  // 3
-        WebIndicatorView(title: entry.object.title)
-          .padding()
-          .background(.metBackground)
-          .foregroundStyle(.white)
-      } else {
-        DetailIndicatorView(title: entry.object.title)
-          .padding()
-          .background(.metForeground)
-      }
+            if !entry.object.isPublicDomain {
+                WebIndicatorView(title: entry.object.title)
+                    .padding()
+                    .background(.metBackground)  // Ensure custom color extension exists
+                    .foregroundStyle(.white)
+            } else {
+                DetailIndicatorView(title: entry.object.title)
+                    .padding()
+                    .background(.metForeground)  // Ensure custom color extension exists
+            }
+        }
+        .truncationMode(.middle)
+        .fontWeight(.semibold)
+        .widgetURL(URL(string: "themet://\(entry.object.objectID)"))
     }
-    .truncationMode(.middle)  // 4
-    .fontWeight(.semibold)
-    .widgetURL(URL(string: "themet://\(entry.object.objectID)"))
-  }
 }
 
 struct TheMetWidget: Widget {
-  let kind: String = "TheMetWidget"
+    let kind: String = "TheMetWidget"
 
-  var body: some WidgetConfiguration {
-    StaticConfiguration(kind: kind, provider: Provider()) { entry in
-      if #available(iOS 17.0, *) {
-        TheMetWidgetEntryView(entry: entry)
-          .containerBackground(.fill.tertiary, for: .widget)
-      } else {
-        TheMetWidgetEntryView(entry: entry)
-          .padding()
-          .background()
-      }
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            if #available(iOS 17.0, *) {
+                TheMetWidgetEntryView(entry: entry)
+                    .containerBackground(.fill.tertiary, for: .widget)
+            } else {
+                TheMetWidgetEntryView(entry: entry)
+                    .padding()
+                    .background()
+            }
+        }
+        .configurationDisplayName("The Met")
+        .description("View objects from the Metropolitan Museum.")
+        .supportedFamilies([.systemMedium, .systemLarge])
     }
-    .configurationDisplayName("The Met")
-    .description("View objects from the Metropolitan Museum.")
-    .supportedFamilies([.systemMedium, .systemLarge])
-  }
 }
 
 #Preview(as: .systemLarge) {
-  TheMetWidget()
+    TheMetWidget()
 } timeline: {
-  SimpleEntry(date: .now, object: Object.sample(isPublicDomain: true))
-  SimpleEntry(date: .now, object: Object.sample(isPublicDomain: false))
+    SimpleEntry(date: .now, object: Object.sample(isPublicDomain: true))
+    SimpleEntry(date: .now, object: Object.sample(isPublicDomain: false))
 }
+
