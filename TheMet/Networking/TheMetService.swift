@@ -46,7 +46,6 @@ struct TheMetService {
     }
     let baseParams = ["hasImages": "true"]
     urlComponents.setQueryItems(with: baseParams)
-    // swiftlint:disable:next force_unwrapping
     urlComponents.queryItems! += [URLQueryItem(name: "q", value: queryTerm)]
     guard let queryURL = urlComponents.url else { return nil }
     let request = URLRequest(url: queryURL)

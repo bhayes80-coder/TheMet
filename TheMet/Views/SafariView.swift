@@ -45,7 +45,6 @@ struct SafariView: UIViewControllerRepresentable {
 
 struct SafariView_Previews: PreviewProvider {
   static var previews: some View {
-    // swiftlint:disable:next force_unwrapping
     SafariView(url: URL(string: "https://www.metmuseum.org/art/collection/search/437092")!)
   }
 }
